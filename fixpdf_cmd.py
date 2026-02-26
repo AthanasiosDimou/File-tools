@@ -2,11 +2,11 @@ import curses
 import os
 import sys
 import time
-from PyPDF2 import PdfReader, PdfWriter
+from pypdf import PdfReader, PdfWriter
 
 # --- Shared Logic ---
 
-def remove_restrictions(input_path, output_path, password=None):
+def remove_restrictions(input_path: str, output_path: str, password: str = None) -> tuple[bool, str | None]:
     """
     Reads a PDF and writes it to a new file, removing restrictions.
     """
@@ -21,7 +21,7 @@ def remove_restrictions(input_path, output_path, password=None):
                 try:
                     # Try blank password for simple ownership restrictions
                     reader.decrypt("")
-                except:
+                except Exception:
                     pass 
 
         for page in reader.pages:
