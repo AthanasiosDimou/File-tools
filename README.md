@@ -38,3 +38,11 @@ You can create a standalone executable using PyInstaller:
 ```bash
 pyinstaller --onefile fixpdf.py
 ```
+
+for the gui version and 
+
+```bash
+pyinstaller --onefile fixpdf_cmd.py
+```
+
+for the cmd version
