@@ -7,7 +7,6 @@ from PySide6.QtCore import QThread, Signal, Qt
 
 # --- 1. Worker Thread for Background Processing ---
 class ConversionWorker(QThread):
-    # Define signals to communicate safely with the main GUI thread
     progress_max = Signal(int)
     progress_update = Signal(int)
     status_update = Signal(str)
@@ -28,8 +27,15 @@ class ConversionWorker(QThread):
         if is_windows:
             try:
                 import comtypes.client
-                self.pdf_format_code = 32 # VBA code for pptSaveAsPDF
+                # Using constants for ExportAsFixedFormat
+                self.ppFixedFormatTypePDF = 2
+                self.ppFixedFormatIntentScreen = 1
+                self.msoFalse = 0
+
+                # Initialize PowerPoint COM object
                 powerpoint = comtypes.client.CreateObject("Powerpoint.Application")
+                # Optional: Make it invisible to speed up processing
+                # powerpoint.Visible = 1
             except ImportError:
                 self.error_occurred.emit("The 'comtypes' package is missing. Please install it.")
                 return
@@ -46,29 +52,35 @@ class ConversionWorker(QThread):
 
             try:
                 if is_windows:
-                    # Windows Conversion
+                    # Robust Windows Conversion using ExportAsFixedFormat
                     deck = powerpoint.Presentations.Open(file_path, WithWindow=False)
-                    deck.SaveAs(output_path, self.pdf_format_code)
+
+                    deck.ExportAsFixedFormat(
+                        output_path,
+                        self.ppFixedFormatTypePDF,
+                        Intent=self.ppFixedFormatIntentScreen,
+                        PrintHiddenSlides=self.msoFalse, # Ignores hidden slides to reduce clutter
+                        FrameSlides=self.msoFalse
+                    )
                     deck.Close()
                 else:
-                    # macOS/Linux Conversion
+                    # macOS/Linux Conversion (LibreOffice)
                     output_dir = os.path.dirname(file_path)
 
-                    if sys.platform == "darwin": # macOS
+                    if sys.platform == "darwin":
                         lo_cmd = "/Applications/LibreOffice.app/Contents/MacOS/soffice"
-                    else: # Linux
+                    else:
                         lo_cmd = "libreoffice"
 
+                    # Adding --pt to sometimes force better layout rendering in LibreOffice
                     subprocess.run([lo_cmd, '--headless', '--convert-to', 'pdf', file_path, '--outdir', output_dir],
                         check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
                     )
             except Exception as e:
                 print(f"Failed to convert {filename}: {e}")
 
-            # Send progress update to GUI
             self.progress_update.emit(i + 1)
 
-        # Cleanup PowerPoint process on Windows
         if is_windows and powerpoint:
             powerpoint.Quit()
 
