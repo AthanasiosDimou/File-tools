@@ -1,1 +1,3 @@
 PySide6
+# Windows only: PowerPoint COM object support
+comtypes>=1.1.14; sys_platform == 'win32'

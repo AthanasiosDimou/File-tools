@@ -1,47 +1,81 @@
-in arch you will need to download libre office: `sudo pacman -S libreoffice-fresh`
+# PPT to PDF Converter
 
-or you can use this:
+A cross-platform Python GUI application to convert PowerPoint presentations (`.ppt`, `.pptx`, `.ppsx`) to PDF using system-agnostic tools.
 
-```py
+## Features
 
-import aspose.slides as slides
+- 🖥️ **Cross-Platform**: Works on Windows, macOS, and Linux
+- ⚡ **System Tools**: Uses native/pre-installed tools (no expensive licenses needed)
+- 🎨 **GUI Interface**: Simple, clean interface built with PySide6
+- 🔄 **Batch Processing**: Convert multiple files at once
+- 📊 **Progress Tracking**: Real-time progress bar and status updates
 
-class ConversionWorker(QThread):
-    progress_max = Signal(int)
-    progress_update = Signal(int)
-    status_update = Signal(str)
-    error_occurred = Signal(str)
-    finished_conversion = Signal(int)
+## Installation
 
-    def __init__(self, file_paths):
-        super().__init__()
-        self.file_paths = file_paths
+### Prerequisites
 
-    def run(self):
-        total_files = len(self.file_paths)
-        self.progress_max.emit(total_files)
+1. **Python 3.10+** (required for `match/case` statement support)
 
-        for i, file_path in enumerate(self.file_paths):
-            file_path = os.path.abspath(file_path)
-            output_path = os.path.splitext(file_path)[0] + ".pdf"
-            filename = os.path.basename(file_path)
-            
-            self.status_update.emit(f"Converting: {filename}...")
+2. **PySide6** (GUI framework)
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-            try:
-                # Use Aspose.Slides to render the PDF directly
-                presentation = slides.Presentation(file_path)
-                presentation.save(output_path, slides.export.SaveFormat.PDF)
-            except Exception as e:
-                print(f"Failed to convert {filename}: {e}")
+### Platform-Specific Setup
 
-            self.progress_update.emit(i + 1)
+#### Windows
+- **PowerPoint**: Requires Microsoft Office (PowerPoint) to be installed
+- **Dependencies**: 
+  ```bash
+  pip install comtypes
+  ```
+  (automatically installed via requirements.txt)
 
-        self.finished_conversion.emit(total_files)
-        
+#### macOS
+- **LibreOffice**: Install from [libreoffice.org](https://www.libreoffice.org/download/) or Homebrew:
+  ```bash
+  brew install libreoffice
+  ```
+
+#### Linux
+
+**Ubuntu/Debian:**
+```bash
+sudo apt-get install libreoffice
 ```
 
-it does not use libre office but leaves a watermark and needs this package too expept from pyside6: aspose.slides>=24.1.0
+**Fedora:**
+```bash
+sudo dnf install libreoffice
+```
 
+**Arch Linux:**
+```bash
+sudo pacman -S libreoffice-fresh
+```
 
-if you want to delete it from arch do `sudo pacman -Rns libreoffice-fresh`
+## Usage
+
+Run the application:
+```bash
+python ppt_to_pdf.py
+```
+
+1. Click **"Select Files & Convert"**
+2. Choose one or more PowerPoint files
+3. Wait for the conversion to complete
+4. PDFs will be saved in the same directory as the original files
+
+## How It Works
+
+The application uses `match/case` statements for clean, platform-agnostic logic:
+
+- **Windows**: Leverages PowerPoint COM objects via `comtypes` for native conversion
+- **macOS & Linux**: Uses LibreOffice's headless mode for reliable, free PDF export
+
+## Technical Details
+
+- Uses Python 3.10+ `match/case` instead of if/elif chains
+- Runs conversion in background thread to keep GUI responsive
+- Automatically detects available platform tools
+- Provides platform-specific error messages with installation instructions

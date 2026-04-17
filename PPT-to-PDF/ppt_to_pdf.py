@@ -21,27 +21,21 @@ class ConversionWorker(QThread):
         total_files = len(self.file_paths)
         self.progress_max.emit(total_files)
 
-        is_windows = sys.platform.startswith("win")
+        # Determine platform and initialize required tools
+        platform = self._get_platform()
         powerpoint = None
 
-        if is_windows:
-            try:
-                import comtypes.client
-                # Using constants for ExportAsFixedFormat
-                self.ppFixedFormatTypePDF = 2
-                self.ppFixedFormatIntentScreen = 1
-                self.msoFalse = 0
-
-                # Initialize PowerPoint COM object
-                powerpoint = comtypes.client.CreateObject("Powerpoint.Application")
-                # Optional: Make it invisible to speed up processing
-                # powerpoint.Visible = 1
-            except ImportError:
-                self.error_occurred.emit("The 'comtypes' package is missing. Please install it.")
-                return
-            except Exception as e:
-                self.error_occurred.emit(f"Could not open PowerPoint. Is Microsoft Office installed?\nError: {e}")
-                return
+        match platform:
+            case "windows":
+                powerpoint = self._initialize_windows()
+                if powerpoint is None:
+                    return
+            case "macos":
+                if not self._check_libreoffice_macos():
+                    return
+            case "linux":
+                if not self._check_libreoffice_linux():
+                    return
 
         for i, file_path in enumerate(self.file_paths):
             file_path = os.path.abspath(file_path)
@@ -51,40 +45,97 @@ class ConversionWorker(QThread):
             self.status_update.emit(f"Converting: {filename}...")
 
             try:
-                if is_windows:
-                    # Robust Windows Conversion using ExportAsFixedFormat
-                    deck = powerpoint.Presentations.Open(file_path, WithWindow=False)
-
-                    deck.ExportAsFixedFormat(
-                        output_path,
-                        self.ppFixedFormatTypePDF,
-                        Intent=self.ppFixedFormatIntentScreen,
-                        PrintHiddenSlides=self.msoFalse, # Ignores hidden slides to reduce clutter
-                        FrameSlides=self.msoFalse
-                    )
-                    deck.Close()
-                else:
-                    # macOS/Linux Conversion (LibreOffice)
-                    output_dir = os.path.dirname(file_path)
-
-                    if sys.platform == "darwin":
-                        lo_cmd = "/Applications/LibreOffice.app/Contents/MacOS/soffice"
-                    else:
-                        lo_cmd = "libreoffice"
-
-                    # Adding --pt to sometimes force better layout rendering in LibreOffice
-                    subprocess.run([lo_cmd, '--headless', '--convert-to', 'pdf', file_path, '--outdir', output_dir],
-                        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
-                    )
+                match platform:
+                    case "windows":
+                        self._convert_windows(powerpoint, file_path, output_path)
+                    case "macos":
+                        self._convert_libreoffice(file_path, output_path, "/Applications/LibreOffice.app/Contents/MacOS/soffice")
+                    case "linux":
+                        self._convert_libreoffice(file_path, output_path, "libreoffice")
             except Exception as e:
-                print(f"Failed to convert {filename}: {e}")
+                self.status_update.emit(f"Failed to convert {filename}: {e}")
 
             self.progress_update.emit(i + 1)
 
-        if is_windows and powerpoint:
+        if platform == "windows" and powerpoint:
             powerpoint.Quit()
 
         self.finished_conversion.emit(total_files)
+
+    def _get_platform(self):
+        """Detect the current platform."""
+        match sys.platform:
+            case platform if platform.startswith("win"):
+                return "windows"
+            case "darwin":
+                return "macos"
+            case _:
+                return "linux"
+
+    def _initialize_windows(self):
+        """Initialize PowerPoint COM object for Windows."""
+        try:
+            import comtypes.client
+            powerpoint = comtypes.client.CreateObject("Powerpoint.Application")
+            return powerpoint
+        except ImportError:
+            self.error_occurred.emit("The 'comtypes' package is missing.\nInstall with: pip install comtypes")
+            return None
+        except Exception as e:
+            self.error_occurred.emit(f"Could not open PowerPoint. Is Microsoft Office installed?\nError: {e}")
+            return None
+
+    def _check_libreoffice_macos(self):
+        """Check if LibreOffice is available on macOS."""
+        lo_path = "/Applications/LibreOffice.app/Contents/MacOS/soffice"
+        if not os.path.exists(lo_path):
+            self.error_occurred.emit(
+                "LibreOffice is not installed.\n"
+                "Install from: https://www.libreoffice.org/download/\n"
+                "or use Homebrew: brew install libreoffice"
+            )
+            return False
+        return True
+
+    def _check_libreoffice_linux(self):
+        """Check if LibreOffice is available on Linux."""
+        try:
+            subprocess.run(["which", "libreoffice"], check=True, capture_output=True)
+            return True
+        except subprocess.CalledProcessError:
+            self.error_occurred.emit(
+                "LibreOffice is not installed.\n"
+                "Install on Ubuntu/Debian: sudo apt-get install libreoffice\n"
+                "Install on Fedora: sudo dnf install libreoffice\n"
+                "Install on Arch: sudo pacman -S libreoffice-fresh"
+            )
+            return False
+
+    def _convert_windows(self, powerpoint, file_path, output_path):
+        """Convert PPT to PDF on Windows using PowerPoint COM object."""
+        ppFixedFormatTypePDF = 2
+        ppFixedFormatIntentScreen = 1
+        msoFalse = 0
+
+        deck = powerpoint.Presentations.Open(file_path, WithWindow=False)
+        deck.ExportAsFixedFormat(
+            output_path,
+            ppFixedFormatTypePDF,
+            Intent=ppFixedFormatIntentScreen,
+            PrintHiddenSlides=msoFalse,
+            FrameSlides=msoFalse
+        )
+        deck.Close()
+
+    def _convert_libreoffice(self, file_path, output_path, lo_cmd):
+        """Convert PPT to PDF on macOS/Linux using LibreOffice."""
+        output_dir = os.path.dirname(file_path)
+        subprocess.run(
+            [lo_cmd, '--headless', '--convert-to', 'pdf', file_path, '--outdir', output_dir],
+            check=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
 
 
 # --- 2. Main GUI Application ---
