@@ -1,0 +1,6 @@
+# Requirements for Reduce Video Size
+# This script uses the FFmpeg command-line tool and does not require any external Python packages.
+# Install FFmpeg separately and make sure the ffmpeg executable is available on your PATH.
+
+# Optional:
+ffmpeg-python  # only if you want to use the ffmpeg-python wrapper instead of subprocess
