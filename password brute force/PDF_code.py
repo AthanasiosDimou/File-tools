@@ -1,58 +1,59 @@
-import os
 import tkinter as tk
 from tkinter import filedialog
 import pikepdf
-# Import everything from your password generator
-from passwordGenerator import *
+
+from typing import List
+
+import passwordGenerator as pg # Import as a module
+
 
 def select_pdf_file():
-    """Opens a file manager to select the PDF."""
     root = tk.Tk()
-    root.withdraw()  # Hide the main tkinter window
-    file_path = filedialog.askopenfilename(
-        title="Select the encrypted PDF",
-        filetypes=[("PDF files", "*.pdf")]
-    )
+    root.withdraw()
+    file_path = filedialog.askopenfilename(title="Select the encrypted PDF")
     return file_path
 
-def try_password(pdf_path, password):
-    """Attempts to open the PDF with the given password."""
-    try:
-        with pikepdf.open(pdf_path, password=password) as pdf:
-            return True 
-    except (pikepdf.PasswordError, pikepdf.EncryptionError):
-        return False
 
 if __name__ == "__main__":
-    # 1. Get the file path using GUI
-    pdf_path = select_pdf_file()
     
+    # Define these at the module level so they are accessible after import
+    ascii_min: int = 32
+    ascii_max: int = 126
+
+    # If your generator needs to know the password length to brute force:
+    # Set the variables inside the imported module
+
+    password_max: int = 10 # Change this to the length you are testing
+    ASCII: list[int] = [ascii_min - 1] * password_max # Pre-fill the list
+
+    log_file: str = "passwords.txt"
+
+    # Get the file path via GUI
+    pdf_path: str = select_pdf_file()
     if not pdf_path:
-        print("No file selected. Exiting.")
-        sys.exit()
+        print("No file selected.")
+        exit()
 
-    print(f"Targeting: {pdf_path}")
-
-    # 2. Setup (from your passwordGenerator)
-    # The 'ASCII' list and 'password_max' are initialized in passwordGenerator.py
-    # when it was imported. We just need to start the loop.
+    print(f"Brute forcing: {pdf_path}")
     
-    counter = 0
+    counter: int = 0
     while True:
-        generate()
+        pg.generate(ASCII, password_max, ascii_min, ascii_max)
         counter += 1
-        guess = convert()
+        guess: str = pg.convert(ASCII, password_max, ascii_min)
         
-        # Testing the guess
-        if try_password(pdf_path, guess):
-            print("\n" + "---- FOUND ----")
-            print(f"Password = {guess}")
-            print(f"Attempts = {counter}")
-            
-            # Save the result
-            with open("found_password.txt", "w") as f:
-                f.write(guess)
-            break
-        
-        if counter % 100 == 0:
-            print(f"Trying: {guess} ({counter} attempts)")
+        try:
+            with pikepdf.open(pdf_path, password=guess) as pdf:
+                result_text: str = f"Password found: {guess} | Attempts: {counter}"
+                print(f"\n---- FOUND ----\n{result_text}")
+                
+                # Append to the text file
+                with open(log_file, "a") as f:
+                    f.write(result_text + "\n")
+                break
+
+        except:
+            if counter % 10000 == 0: # print attempt every 10000 tries to avoid flooding the console
+              print(f"Attempts: {counter} | Last guess: {guess}")
+
+# python's prints are  quite slow on the CPU so we will lessen the amount of prints to speed up the brute force process.
