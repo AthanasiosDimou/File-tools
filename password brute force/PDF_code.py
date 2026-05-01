@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import filedialog
 import pikepdf
+import io
 
 from typing import List
 
@@ -13,10 +14,10 @@ def select_pdf_file():
     file_path = filedialog.askopenfilename(title="Select the encrypted PDF")
     return file_path
 
-def test_passwords_txt(passwords: List[str], pdf_path: str):
+def test_passwords_txt(passwords: List[str], pdf_bytes: bytes):
     for password in passwords:
         try:
-            with pikepdf.open(pdf_path, password=password) as pdf:
+            with pikepdf.open(io.BytesIO(pdf_bytes), password=password) as pdf:
                 print(f"Password found: {password}")
                 return password
         except pikepdf.PasswordError:
@@ -44,6 +45,11 @@ if __name__ == "__main__":
         print("No file selected.")
         exit()
 
+    print(f"Loading PDF into memory: {pdf_path}")
+    # Read PDF into memory to avoid disk I/O on every password guess
+    with open(pdf_path, 'rb') as f:
+        pdf_bytes = f.read()
+
     # Try passwords from file first
     try:
         with open(log_file, "r") as f:
@@ -52,7 +58,7 @@ if __name__ == "__main__":
             f.seek(0)
             passwords.extend([line.strip() for line in f if " | " not in line])
             
-        found_pass = test_passwords_txt(passwords, pdf_path)
+        found_pass = test_passwords_txt(passwords, pdf_bytes)
         if found_pass:
             print("Password found in log file!")
             exit()
@@ -68,7 +74,7 @@ if __name__ == "__main__":
         guess: str = pg.convert(ASCII, password_max, ascii_min)
         
         try:
-            with pikepdf.open(pdf_path, password=guess) as pdf:
+            with pikepdf.open(io.BytesIO(pdf_bytes), password=guess) as pdf:
                 result_text: str = f"Password found: {guess} | Attempts: {counter}"
                 print(f"\n---- FOUND ----\n{result_text}")
                 
