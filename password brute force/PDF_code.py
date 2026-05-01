@@ -13,6 +13,16 @@ def select_pdf_file():
     file_path = filedialog.askopenfilename(title="Select the encrypted PDF")
     return file_path
 
+def test_passwords_txt(passwords: List[str], pdf_path: str):
+    for password in passwords:
+        try:
+            with pikepdf.open(pdf_path, password=password) as pdf:
+                print(f"Password found: {password}")
+                return password
+        except pikepdf.PasswordError:
+            continue
+    return None
+
 
 if __name__ == "__main__":
     
@@ -33,6 +43,21 @@ if __name__ == "__main__":
     if not pdf_path:
         print("No file selected.")
         exit()
+
+    # Try passwords from file first
+    try:
+        with open(log_file, "r") as f:
+            passwords = [line.strip().split(" | ")[0].replace("Password found: ", "") for line in f if "Password found: " in line]
+            # Also just try raw passwords if they are in the file
+            f.seek(0)
+            passwords.extend([line.strip() for line in f if " | " not in line])
+            
+        found_pass = test_passwords_txt(passwords, pdf_path)
+        if found_pass:
+            print("Password found in log file!")
+            exit()
+    except FileNotFoundError:
+        pass
 
     print(f"Brute forcing: {pdf_path}")
     
