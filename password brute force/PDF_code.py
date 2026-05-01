@@ -4,6 +4,7 @@ import pikepdf
 import concurrent.futures
 import multiprocessing
 import time
+import io
 
 from typing import List
 
@@ -16,13 +17,16 @@ def select_pdf_file():
     file_path = filedialog.askopenfilename(title="Select the encrypted PDF")
     return file_path
 
-def test_passwords_txt(passwords: List[str], pdf_path: str):
+def test_passwords_txt(passwords: List[str], pdf_data: bytes):
     for password in passwords:
         try:
-            with pikepdf.open(pdf_path, password=password) as pdf:
+            with pikepdf.open(io.BytesIO(pdf_data), password=password) as pdf:
                 print(f"Password found: {password}")
                 return password
         except pikepdf.PasswordError:
+            continue
+        except Exception:
+            # Handle other possible pikepdf exceptions silently
             continue
     return None
 
@@ -46,6 +50,10 @@ if __name__ == "__main__":
     if not pdf_path:
         print("No file selected.")
         exit()
+        
+    print(f"Loading {pdf_path} into memory...")
+    with open(pdf_path, "rb") as f:
+        pdf_bytes = f.read()
 
     # Try passwords from file first
     try:
@@ -55,7 +63,7 @@ if __name__ == "__main__":
             f.seek(0)
             passwords.extend([line.strip() for line in f if " | " not in line])
             
-        found_pass = test_passwords_txt(passwords, pdf_path)
+        found_pass = test_passwords_txt(passwords, pdf_bytes)
         if found_pass:
             print("Password found in log file!")
             exit()
@@ -84,7 +92,7 @@ if __name__ == "__main__":
                     batch.append(guess)
                 
                 counter += BATCH_SIZE
-                active_futures.add(executor.submit(test_passwords_txt, batch, pdf_path))
+                active_futures.add(executor.submit(test_passwords_txt, batch, pdf_bytes))
 
             # Wait for completed tasks
             done, active_futures = concurrent.futures.wait(
@@ -98,7 +106,7 @@ if __name__ == "__main__":
                     found_password = res
                     break
 
-            if counter % 50000 == 0: # Print progress every 50k attempts so that the print statements don't overwhelm the console
+            if counter % 50000 == 0 or (counter - BATCH_SIZE) % 50000 <= BATCH_SIZE: 
                 print(f"Attempts: ~{counter} | Time elapsed: {time.time() - start_time:.2f}s")
         
         if found_password:
