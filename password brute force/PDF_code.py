@@ -40,8 +40,8 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Define these at the module level so they are accessible after import
-    ascii_min: int = 32
-    ascii_max: int = 126
+    ascii_min: int = 48 # original 32
+    ascii_max: int = 122 # original 126
 
     log_file: str = "passwords.txt"
 
@@ -66,8 +66,6 @@ if __name__ == "__main__":
     except FileNotFoundError:
         pass
 
-    print(f"Brute forcing: {pdf_path}")
-    
     BATCH_SIZE: int = 5000 if not args.single_thread else 1000
     max_workers: int = 1 if args.single_thread else multiprocessing.cpu_count()
     
@@ -79,8 +77,6 @@ if __name__ == "__main__":
     for current_len in range(args.min_len, args.max_len + 1):
         if found_password:
             break
-
-        print(f"Testing passwords of length {current_len}...")
         
         # We prepare ASCII to just represent the current_len.
         # However, to avoid pg.sys.exit() from generate() ending this script 
@@ -94,7 +90,7 @@ if __name__ == "__main__":
         
         # Function to generate next password, avoiding pg.generate's sys.exit()
         def get_next_guess():
-            nonlocal current_len, ASCII
+            global current_len, ASCII
             for i in range(current_len - 1, -1, -1):
                 if pg.increase(i, ASCII, ascii_min, ascii_max, current_len):
                     return pg.convert(ASCII, current_len, ascii_min)
@@ -134,9 +130,6 @@ if __name__ == "__main__":
                             if res:
                                 found_password = res
                                 break
-                    
-                    if counter % 50000 < BATCH_SIZE * 2: 
-                        print(f"Attempts: ~{counter} | Time elapsed: {time.time() - start_time:.2f}s")
         else:
             # Single threaded
             batch = []
@@ -151,9 +144,6 @@ if __name__ == "__main__":
                         found_password = res
                         break
                     batch = []
-                    
-                    if counter % 50000 < BATCH_SIZE * 2: 
-                        print(f"Attempts: ~{counter} | Time elapsed: {time.time() - start_time:.2f}s")
         
     if found_password:
         result_text: str = f"Password found: {found_password} | Total Batched Attempts: ~{counter}"
