@@ -53,7 +53,7 @@ if __name__ == "__main__":
 
     # Try passwords from file first
     try:
-        with open(log_file, "r") as f:
+        with open(log_file, "r+") as f:
             passwords = [line.strip().split(" | ")[0].replace("Password found: ", "") for line in f if "Password found: " in line]
             f.seek(0)
             passwords.extend([line.strip() for line in f if " | " not in line])
@@ -73,8 +73,10 @@ if __name__ == "__main__":
     start_time = time.time()
     
     found_password = None
+    last_guess = None
 
-    for current_len in range(args.min_len, args.max_len + 1):
+    try:
+        for current_len in range(args.min_len, args.max_len + 1):
         if found_password:
             break
         
@@ -110,6 +112,7 @@ if __name__ == "__main__":
                         for _ in range(BATCH_SIZE):
                             if guess is not None:
                                 batch.append(guess)
+                                last_guess = guess
                                 guess = get_next_guess()
                             else:
                                 break
@@ -135,6 +138,7 @@ if __name__ == "__main__":
             batch = []
             while guess is not None and found_password is None:
                 batch.append(guess)
+                last_guess = guess
                 guess = get_next_guess()
 
                 if len(batch) >= BATCH_SIZE or guess is None:
@@ -144,6 +148,14 @@ if __name__ == "__main__":
                         found_password = res
                         break
                     batch = []
+        
+    except KeyboardInterrupt:
+        elapsed = time.time() - start_time
+        print(f"\n\n---- INTERRUPTED ----")
+        print(f"Attempts made: ~{counter}")
+        print(f"Last attempt: {last_guess}")
+        print(f"Time elapsed: {elapsed:.2f}s")
+        exit()
         
     if found_password:
         result_text: str = f"Password found: {found_password} | Total Batched Attempts: ~{counter}"
