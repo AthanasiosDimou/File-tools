@@ -77,77 +77,77 @@ if __name__ == "__main__":
 
     try:
         for current_len in range(args.min_len, args.max_len + 1):
-        if found_password:
-            break
-        
-        # We prepare ASCII to just represent the current_len.
-        # However, to avoid pg.sys.exit() from generate() ending this script 
-        # when it finishes the length, we could either patch pg in memory, or 
-        # just know that `pg.generate` relies on array sizes.
-        # Wait, if we use pg.generate, it will sys.exit() on completion.
-        # Instead, we can manually implement the iteration loop or monkey-patch sys.exit?
-        # A simpler way without rewriting generate() is to use `pg.increase` and `pg.extend` directly here.
-        
-        ASCII: list[int] = [ascii_min] * current_len
-        
-        # Function to generate next password, avoiding pg.generate's sys.exit()
-        def get_next_guess():
-            global current_len, ASCII
-            for i in range(current_len - 1, -1, -1):
-                if pg.increase(i, ASCII, ascii_min, ascii_max, current_len):
-                    return pg.convert(ASCII, current_len, ascii_min)
-            return None
-        
-        guess = pg.convert(ASCII, current_len, ascii_min) # Initial
-        total_generated = 1
+            if found_password:
+                break
+            
+            # We prepare ASCII to just represent the current_len.
+            # However, to avoid pg.sys.exit() from generate() ending this script 
+            # when it finishes the length, we could either patch pg in memory, or 
+            # just know that `pg.generate` relies on array sizes.
+            # Wait, if we use pg.generate, it will sys.exit() on completion.
+            # Instead, we can manually implement the iteration loop or monkey-patch sys.exit?
+            # A simpler way without rewriting generate() is to use `pg.increase` and `pg.extend` directly here.
+            
+            ASCII: list[int] = [ascii_min] * current_len
+            
+            # Function to generate next password, avoiding pg.generate's sys.exit()
+            def get_next_guess():
+                global current_len, ASCII
+                for i in range(current_len - 1, -1, -1):
+                    if pg.increase(i, ASCII, ascii_min, ascii_max, current_len):
+                        return pg.convert(ASCII, current_len, ascii_min)
+                return None
+            
+            guess = pg.convert(ASCII, current_len, ascii_min) # Initial
+            total_generated = 1
 
-        if not args.single_thread:
-            with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-                active_futures = set()
-                
+            if not args.single_thread:
+                with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    active_futures = set()
+                    
+                    while guess is not None and found_password is None:
+                        # Maintain a queue of tasks
+                        while len(active_futures) < max_workers * 2 and guess is not None:
+                            batch = []
+                            for _ in range(BATCH_SIZE):
+                                if guess is not None:
+                                    batch.append(guess)
+                                    last_guess = guess
+                                    guess = get_next_guess()
+                                else:
+                                    break
+                            
+                            counter += len(batch)
+                            total_generated += len(batch)
+                            active_futures.add(executor.submit(test_passwords_txt, batch, pdf_path))
+
+                        # Wait for completed tasks
+                        if active_futures:
+                            done, active_futures = concurrent.futures.wait(
+                                active_futures, 
+                                return_when=concurrent.futures.FIRST_COMPLETED
+                            )
+                            
+                            for future in done:
+                                res = future.result()
+                                if res:
+                                    found_password = res
+                                    break
+            else:
+                # Single threaded
+                batch = []
                 while guess is not None and found_password is None:
-                    # Maintain a queue of tasks
-                    while len(active_futures) < max_workers * 2 and guess is not None:
-                        batch = []
-                        for _ in range(BATCH_SIZE):
-                            if guess is not None:
-                                batch.append(guess)
-                                last_guess = guess
-                                guess = get_next_guess()
-                            else:
-                                break
-                        
+                    batch.append(guess)
+                    last_guess = guess
+                    guess = get_next_guess()
+
+                    if len(batch) >= BATCH_SIZE or guess is None:
                         counter += len(batch)
-                        total_generated += len(batch)
-                        active_futures.add(executor.submit(test_passwords_txt, batch, pdf_path))
-
-                    # Wait for completed tasks
-                    if active_futures:
-                        done, active_futures = concurrent.futures.wait(
-                            active_futures, 
-                            return_when=concurrent.futures.FIRST_COMPLETED
-                        )
-                        
-                        for future in done:
-                            res = future.result()
-                            if res:
-                                found_password = res
-                                break
-        else:
-            # Single threaded
-            batch = []
-            while guess is not None and found_password is None:
-                batch.append(guess)
-                last_guess = guess
-                guess = get_next_guess()
-
-                if len(batch) >= BATCH_SIZE or guess is None:
-                    counter += len(batch)
-                    res = test_passwords_txt(batch, pdf_path)
-                    if res:
-                        found_password = res
-                        break
-                    batch = []
+                        res = test_passwords_txt(batch, pdf_path)
+                        if res:
+                            found_password = res
+                            break
+                        batch = []
         
     except KeyboardInterrupt:
         elapsed = time.time() - start_time
