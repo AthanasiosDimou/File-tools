@@ -19,10 +19,11 @@ def select_pdf_file():
     file_path = filedialog.askopenfilename(title="Select the encrypted PDF")
     return file_path
 
-def test_passwords_txt(passwords: List[str], pdf_path: str):
+def test_passwords_txt(passwords: List[str], pdf_bytes: bytes):
+    """Test passwords against an in-memory copy of the PDF to avoid repeated disk reads."""
     for password in passwords:
         try:
-            with pikepdf.open(pdf_path, password=password) as pdf:
+            with pikepdf.open(io.BytesIO(pdf_bytes), password=password) as pdf:
                 return password
         except pikepdf.PasswordError:
             continue
@@ -50,6 +51,10 @@ if __name__ == "__main__":
     if not pdf_path:
         print("No file selected.")
         exit()
+    
+    # Read the PDF into memory once to batch password testing
+    with open(pdf_path, "rb") as f:
+        pdf_bytes: bytes = f.read()
 
     # Try passwords from file first
     try:
@@ -58,7 +63,7 @@ if __name__ == "__main__":
             f.seek(0)
             passwords.extend([line.strip() for line in f if " | " not in line])
             
-        found_pass = test_passwords_txt(passwords, pdf_path)
+        found_pass = test_passwords_txt(passwords, pdf_bytes)
         if found_pass:
             print("Password found in log file!")
             print(f"Password: {found_pass}")
@@ -119,7 +124,7 @@ if __name__ == "__main__":
                             
                             counter += len(batch)
                             total_generated += len(batch)
-                            active_futures.add(executor.submit(test_passwords_txt, batch, pdf_path))
+                            active_futures.add(executor.submit(test_passwords_txt, batch, pdf_bytes))
 
                         # Wait for completed tasks
                         if active_futures:
@@ -143,7 +148,7 @@ if __name__ == "__main__":
 
                     if len(batch) >= BATCH_SIZE or guess is None:
                         counter += len(batch)
-                        res = test_passwords_txt(batch, pdf_path)
+                        res = test_passwords_txt(batch, pdf_bytes)
                         if res:
                             found_password = res
                             break
