@@ -10,7 +10,7 @@ import sys
 
 from typing import List
 
-import passwordGenerator as pg # Import as a module
+import ../passwordGenerator as pg # Import as a module
 
 
 def select_pdf_file():

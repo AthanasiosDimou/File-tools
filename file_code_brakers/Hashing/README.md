@@ -131,29 +131,46 @@ ascii_min, ascii_max = 48, 122  # Change these values
 
 - `hash_cracker.py` - Main hash cracking tool
 - `euler.py` - Euler's Totient Theorem implementation for RSA (educational)
-- `pdf2john.py` - Extract password hash from PDF files
 - `requirements.txt` - Dependencies
+- `pdf2john/` - External helper repo for extracting PDF password hashes
 
 ## Extracting PDF Hashes
 
-Use `pdf2john.py` to extract password hashes from PDF files, then crack them:
+Use the external `pdf2john` repository to extract PDF password hashes. The actual script lives in `pdf2john/src/pdf2john/pdf2john.py`, not in a top-level directory.
 
 ```bash
-# Extract hash from PDF
-python pdf2john.py yourfile.pdf > pdf_hash.txt
+cd "file code brakers\Hashing"
+git clone https://github.com/benjamin-awd/pdf2john.git
+cd pdf2john
+pip install -r requirements.txt
+```
 
-# Crack the extracted hash
+Then run the extractor from the cloned repo:
+
+```bash
+python src/pdf2john/pdf2john.py "your_pdf" > hash_txt.txt
+```
+
+
+Then crack the extracted hash with `hash_cracker.py`:
+
+```bash
+# Bash / WSL
 python hash_cracker.py "$(cat pdf_hash.txt)" --type sha256
+
+# Windows PowerShell
+python hash_cracker.py "$(Get-Content pdf_hash.txt -Raw)" --type sha256
 ```
 
 ### PDF Hash Format
 
-`pdf2john.py` outputs in John the Ripper format:
+`pdf2john` outputs the hash in John the Ripper format:
+
 ```
 yourfile.pdf:$pdf$2*4*4*40*abcd1234...*0000000000000000000000000000000000000000...
 ```
 
-Extract the hash part (after the filename and colon) to pass to hash_cracker.py.
+If you only want the hash value, extract the portion after the first colon before passing it to `hash_cracker.py`.
 
 ## Example: Generate Test Hashes
 
