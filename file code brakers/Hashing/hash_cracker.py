@@ -28,7 +28,7 @@ try:
 except ImportError:
     BCRYPT_AVAILABLE = False
 
-import passwordGenerator as pg
+import file_code_brakers.Hashing.passwordGenerator as pg
 
 
 def compute_hash(password: str, hash_type: str) -> str:
